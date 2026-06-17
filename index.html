@@ -317,15 +317,16 @@
 
         /* Estilos específicos para la sección responsiva del video */
         .video-wrapper {
-            position: relative;
-            padding-bottom: 56.25%; /* Relación de aspecto 16:9 */
-            height: 0;
-            overflow: hidden;
-            max-width: 100%;
-            border: 1px solid #2d2d3a;
-            background-color: #070709;
-            margin-top: 15px;
-        }
+    position: relative;
+    padding-bottom: 56.25%; /* Relación de aspecto 16:9 */
+    height: 0;
+    overflow: hidden;
+    max-width: 100%;
+    border: 1px solid #2d2d3a;
+    background-color: #070709;
+    margin-top: 15px;
+    z-index: 10; /* Asegura que se posicione por encima de capas invisibles */
+}
 
         .video-wrapper iframe {
             position: absolute;
