@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ANECOICA // Kernel_v0.4_Final_Beta</title>
+    <style>
+        :root {
+            --bg-color: #0c0c0f;
+            --sidebar-bg: #141419;
+            --text-main: #d4d4d4;
+            --keyword: #569cd6;
+            --string: #ce9178;
+            --comment: #6a9955;
+            --function: #dcdcaa;
+            --accent: #4fc1ff;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* --- PANTALLA DE PORTADA (COVER) --- */
+        #cover-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 99999;
+            cursor: pointer;
+            background-color: #000000;
+            overflow: hidden;
+            transition: opacity 1s cubic-bezier(0.4, 0, 0.2, 1), visibility 1s;
+        }
+
+        /* El contenedor SVG ahora ocupa toda la pantalla y tiene un ligero margen para evitar bordes vacíos */
+        #cover-svg-container {
+            position: absolute;
+            top: -5vh;
+            left: -5vw;
+            width: 110vw;
+            height: 110vh;
+            transition: transform 1.2s ease;
+        }
+
+        /* Contenedor aislado de texto para mantener la nitidez tipográfica */
+        .cover-text-container {
+            position: absolute;
+            bottom: 10%;
+            right: 8%;
+            text-align: right;
+            color: #ffffff;
+            z-index: 100000;
+            pointer-events: none;
+            text-shadow: 0 4px 20px rgba(0, 0, 0, 0.7);
+            user-select: none;
+        }
+
+        .cover-title {
+            font-family: 'Arial', sans-serif;
+            font-weight: 900;
+            font-size: clamp(45px, 8vw, 95px);
+            letter-spacing: 2px;
+            line-height: 0.95;
+            text-transform: uppercase;
+            opacity: 0.9;
+            margin-bottom: 2px;
+        }
+
+        .cover-author {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: clamp(16px, 2.5vw, 26px);
+            letter-spacing: 1px;
+            opacity: 0.75;
+            text-transform: lowercase;
+        }
+
+        .cover-prompt {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 11px;
+            color: rgba(255, 255, 255, 255);
+            margin-top: 30px;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            animation: pulse-prompt 2s infinite ease-in-out;
+        }
+
+        @keyframes pulse-prompt {
+            0%, 100% { opacity: 0.2; }
+            50% { opacity: 0.7; }
+        }
+
+        /* Estado de salida al hacer clic */
+        #cover-container.fade-out {
+            opacity: 0;
+            visibility: hidden;
+        }
+        #cover-container.fade-out #cover-svg-container {
+            transform: scale(1.05);
+        }
+
+        /* --- CONTENEDOR DEL EDITOR INTERNO --- */
+        .ide-container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+        }
+
+        .sidebar {
+            width: 250px;
+            background-color: var(--sidebar-bg);
+            border-right: 1px solid #2d2d3a;
+            padding: 20px 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .sidebar h3 {
+            font-size: 14px;
+            color: #858585;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            padding-left: 10px;
+        }
+
+        .file-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .file-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 13px;
+            transition: background 0.2s;
+            color: #aaa;
+        }
+
+        .file-item:hover {
+            background-color: #2a2a35;
+            color: var(--text-main);
+        }
+
+        .file-item.active {
+            background-color: #2d2d3d;
+            color: #fff;
+            border-left: 3px solid var(--keyword);
+        }
+
+        .main-content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--bg-color);
+            position: relative;
+        }
+
+        .tab-header {
+            background-color: #111116;
+            padding: 10px 20px;
+            font-size: 12px;
+            color: #858585;
+            border-bottom: 1px solid #2d2d3a;
+        }
+
+        .tab-content {
+            display: none;
+            flex-grow: 1;
+            padding: 25px;
+            overflow-y: auto;
+        }
+
+        .tab-content.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .code-line {
+            margin-bottom: 6px;
+            line-height: 1.5;
+            font-size: 14px;
+        }
+        .kw { color: var(--keyword); }
+        .str { color: var(--string); }
+        .cmt { color: var(--comment); display: block; margin-bottom: 4px;}
+        .fn { color: var(--function); }
+
+        canvas {
+            border: 1px solid #2d2d3a;
+            background-color: #070709;
+            width: 100%;
+        }
+
+        #network-canvas { height: 400px; }
+        #livecoding-canvas { height: 380px; }
+
+        #poetic-terminal-output {
+            margin-top: 15px;
+            padding: 15px;
+            background: #000;
+            border-left: 3px solid var(--accent);
+            min-height: 70px;
+            font-size: 14px;
+        }
+
+        .control-panel {
+            margin-top: 15px;
+            padding: 15px;
+            background-color: #111116;
+            border: 1px solid #2d2d3a;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 15px;
+        }
+
+        .control-panel .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .control-panel .control-group label {
+            font-size: 11px;
+            color: #858585;
+            text-transform: uppercase;
+        }
+
+        .control-panel .control-group input[type="range"] {
+            width: 100%;
+            background: #2d2d3a;
+            accent-color: var(--keyword);
+            cursor: pointer;
+        }
+
+        .checkbox-group {
+            flex-direction: row;
+            align-items: center;
+            gap: 10px;
+            grid-column: 1 / -1;
+            border-top: 1px dashed #2d2d3a;
+            padding-top: 10px;
+        }
+
+        .checkbox-group input {
+            cursor: pointer;
+            width: 16px;
+            height: 16px;
+            accent-color: var(--comment);
+        }
+
+        .mic-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex-grow: 1;
+            gap: 20px;
+        }
+        .mic-buttons { display: flex; gap: 15px; }
+        #start-mic-btn, #rescan-btn {
+            background: transparent;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: 0.2s;
+        }
+        #start-mic-btn { border: 1px solid var(--keyword); color: var(--keyword); }
+        #start-mic-btn:hover { background: var(--keyword); color: #000; }
+        #rescan-btn { border: 1px dashed var(--string); color: var(--string); }
+        #rescan-btn:hover { background: rgba(206, 145, 120, 0.1); }
+        
+        .silence-visualizer {
+            width: 250px;
+            height: 10px;
+            background: #222;
+            border: 1px solid #444;
+        }
+        #vol-bar { width: 0%; height: 100%; background: #ff5555; transition: width 0.05s; }
+        
+        #silence-text-output {
+            font-size: 18px;
+            text-align: center;
+            max-width: 650px;
+            line-height: 1.8;
+            opacity: 0;
+            transition: opacity 0.4s ease-in-out;
+            color: #fff;
+            min-height: 80px;
+        }
+
+        .download-btn {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 12px 24px;
+            border: 1px dashed var(--string);
+            color: var(--string);
+            text-decoration: none;
+            transition: 0.3s;
+        }
+        .download-btn:hover { background: rgba(206, 145, 120, 0.1); }
+
+        /* Estilos específicos para la sección responsiva del video */
+        .video-wrapper {
+            position: relative;
+            padding-bottom: 56.25%; /* Relación de aspecto 16:9 */
+            height: 0;
+            overflow: hidden;
+            max-width: 100%;
+            border: 1px solid #2d2d3a;
+            background-color: #070709;
+            margin-top: 15px;
+        }
+
+        .video-wrapper iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="cover-container" onclick="dismissCover()">
+        <svg id="cover-svg-container">
+            <defs>
+                <filter id="wave-distortion">
+                    <feTurbulence type="fractalNoise" baseFrequency="0.015 0.015" numOctaves="3" result="wave-noise" />
+                    <feDisplacementMap in="SourceGraphic" in2="wave-noise" scale="35" xChannelSelector="R" yChannelSelector="G" />
+                </filter>
+            </defs>
+            <image href="img/Anecoica_cover.jpg" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" filter="url(#wave-distortion)" />
+        </svg>
+        
+        <div class="cover-text-container">
+            <div class="cover-title">ANECOICA</div>
+            <div class="cover-author">rita f. palacios</div>
+            <div class="cover-prompt">click_para_iniciar_sandbox</div>
+        </div>
+    </div>
+
+    <div class="ide-container">
+        <div class="sidebar">
+            <h3>Anecoica v0.4</h3>
+            <ul class="file-list">
+                <li class="file-item active" onclick="switchTab('network', this)">📁 rizoma</li>
+                <li class="file-item" onclick="switchTab('livecoding', this)">📁 cuerdas</li>
+                <li class="file-item" onclick="switchTab('silence', this)">📁 silencio</li>
+                <li class="file-item" onclick="switchTab('mangles', this)">📁 mangles</li>
+                <li class="file-item" onclick="switchTab('about', this)">📄 acerca</li>
+                <li class="file-item" onclick="switchTab('download', this)">💾 descarga</li>
+            </ul>
+        </div>
+
+        <div class="main-content">
+            <div class="tab-header" id="current-file-title">src/network.js</div>
+
+            <div id="network" class="tab-content active">
+                <div class="code-line"><span class="cmt">// navegación: conexiones de alta visibilidad. texto reconfigurado a blanco.</span>
+                <span class="cmt">// da click en cada nodo</span></div>
+                
+                <br>
+                <br>
+                <canvas id="network-canvas"></canvas>
+                <div id="poetic-terminal-output">> Sistema en latencia dinámica. Selecciona un nodo operativo...</div>
+            </div>
+
+            <div id="livecoding" class="tab-content">
+                <div class="code-line"><span class="cmt">// livecoding: oscilaciones topográficas y latencias biológicas recombinantes.</span></div>
+                <div class="code-line"><span class="kw">function</span> <span class="fn">feedbackLoop</span>(separation, mirror, kaleidoscope, heartbeat) { <span class="kw">return</span> body_pulse(); }</div>
+                <br>
+                <canvas id="livecoding-canvas"></canvas>
+                
+                <div class="control-panel">
+                    <div class="control-group">
+                        <label>Líneas (<span id="val-lines">15</span>)</label>
+                        <input type="range" id="lc-lines" min="2" max="40" value="15">
+                    </div>
+                    <div class="control-group">
+                        <label>Grosor Matriz (<span id="val-thick">1.5</span>px)</label>
+                        <input type="range" id="lc-thickness" min="0.5" max="8" step="0.1" value="1.5">
+                    </div>
+                    <div class="control-group">
+                        <label>Velocidad Clock (<span id="val-speed">0.02</span>)</label>
+                        <input type="range" id="lc-speed" min="0.001" max="0.1" step="0.001" value="0.02">
+                    </div>
+                    <div class="control-group">
+                        <label>Dirección Vector (<span id="val-dir">0</span>°)</label>
+                        <input type="range" id="lc-direction" min="0" max="360" value="0">
+                    </div>
+                    <div class="control-group">
+                        <label>Inyección de Ruido (<span id="val-noise">0</span>)</label>
+                        <input type="range" id="lc-noise" min="0" max="50" value="0">
+                    </div>
+                    
+                    <div class="control-group">
+                        <label>Separación Líneas (<span id="val-separation">25</span>px)</label>
+                        <input type="range" id="lc-separation" min="5" max="80" value="25">
+                    </div>
+                    <div class="control-group">
+                        <label>Reflejo Opacidad (<span id="val-mirror">0</span>%)</label>
+                        <input type="range" id="lc-mirror" min="0" max="100" value="0">
+                    </div>
+                    <div class="control-group">
+                        <label>Caleidoscopio (<span id="val-kscope">1</span> ejes)</label>
+                        <input type="range" id="lc-kscope" min="1" max="12" value="1">
+                    </div>
+                    <div class="control-group">
+                        <label>Latido Cardíaco (<span id="val-heartbeat">0</span>%)</label>
+                        <input type="range" id="lc-heartbeat" min="0" max="100" value="0">
+                    </div>
+                    
+                    <div class="control-group checkbox-group">
+                        <input type="checkbox" id="lc-mic-enable" onchange="toggleLivecodingMic(this)">
+                        <label style="color: var(--comment); cursor:pointer;" for="lc-mic-enable">> [ ENABLE_MIC ] Sincronizar audio ambiente para modular velocidad y dirección</label>
+                    </div>
+                </div>
+            </div>
+
+            <div id="silence" class="tab-content">
+                <div class="code-line"><span class="cmt"># SENSOR: Descompresión de archivos de memoria en ausencia de ruido ambiente.</span></div>
+                <div class="code-line"><span class="kw">if</span> [ "$SILENCE_DETECTED" = <span class="str">true</span> ]; <span class="kw">then</span> <span class="fn">render_verses</span>; <span class="kw">fi</span></div>
+                
+                <div class="mic-container">
+                    <div class="mic-buttons">
+                        <button id="start-mic-btn" onclick="initSharedMic()">[ ENTRAR A CÁMARA ANECOICA ]</button>
+                        <button id="rescan-btn" onclick="triggerManualRescan()">[ RE-ESCANEAR MATRIZ ]</button>
+                    </div>
+                    <div class="silence-visualizer">
+                        <div id="vol-bar"></div>
+                    </div>
+                    <div id="silence-text-output">
+                        "En el centro de la cámara anecoica, el silencio es un software que muerde. Si tú callas, el código se compila."
+                    </div>
+                </div>
+            </div>
+
+            <div id="mangles" class="tab-content">
+                <div class="code-line"><span class="cmt">// MANGLES: Registro audiovisual y ramificaciones fluidas del ecosistema transmedia.</span></div>
+                <br>
+                <div class="video-wrapper">
+                    <iframe width="560" height="315" src="https://www.youtube.com/embed/e47Qa-akBR8?si=3woEb8nwkIacDNxD" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+                </div>
+            </div>
+
+            <div id="about" class="tab-content">
+                <div class="code-line"><span class="kw"># ANECOICA. poética, latencia y aislamiento</span></div>
+                <br>
+                <div class="code-line">Este proyecto es un ecosistema transmedia y un artefacto de poesía expandida que explora la disolución de la voz humana frente al colapso algorítmico.</div>
+                <br>
+                <div class="code-line">Utilizando la metáfora de una <span class="str">cámara anecoica</span>, la obra somete al texto a estados de interferencia, silencio y ramificación rizomática. El libro físico opera aquí como una interfaz base (hardware) que requiere de la interactividad del usuario para descifrar sus capas ocultas de sonido, código simulado e interactividad visceral.</div>
+                <br>
+                <div class="code-line"><span class="cmt">// Desarrollado para el I Premio Disleccia-CEIIDA 2026.</span></div>
+            </div>
+
+            <div id="download" class="tab-content">
+                <div class="code-line"><span class="cmt">// Compilación final del libro en formato nativo físico-digital.</span></div>
+                <br>
+                <p>Haz clic abajo para descargar el núcleo textual comprimido del sistema:</p>
+                <a href="descarga/Anecoica_Hardware_00.pdf" target="_blank" download class="download-btn">
+                    RUN: download_book_matrix.pdf
+                </a>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // --- CONTROL Y ANIMACIÓN DE LA PORTADA ONDA (WAVE EFFECT) ---
+        const waveFilter = document.querySelector('#wave-distortion feTurbulence');
+        let waveTimeline = 0;
+
+        function animateWaveEffect() {
+            if (!waveFilter) return;
+            waveTimeline += 0.006; // Controla la cadencia y velocidad de la ola marina
+            
+            // Genera frecuencias variantes combinadas para distorsionar la imagen de forma líquida
+            let baseFreqX = 0.012 + Math.sin(waveTimeline) * 0.003;
+            let baseFreqY = 0.016 + Math.cos(waveTimeline * 1.2) * 0.002;
+            
+            waveFilter.setAttribute('baseFrequency', `${baseFreqX} ${baseFreqY}`);
+            requestAnimationFrame(animateWaveEffect);
+        }
+        animateWaveEffect();
+
+        function dismissCover() {
+            const cover = document.getElementById('cover-container');
+            if (cover) {
+                cover.classList.add('fade-out');
+            }
+        }
+
+        // --- VARIABLES GLOBALES DE AUDIO UNIFICADO ---
+        let audioContext = null;
+        let analyser = null;
+        let dataArray = null;
+        let micStream = null;
+
+        function initSharedAudio() {
+            return new Promise((resolve, reject) => {
+                if (analyser) return resolve(true);
+                
+                navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+                .then(stream => {
+                    micStream = stream;
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    analyser = audioContext.createAnalyser();
+                    let source = audioContext.createMediaStreamSource(stream);
+                    
+                    analyser.fftSize = 256;
+                    let bufferLength = analyser.frequencyBinCount;
+                    dataArray = new Uint8Array(bufferLength);
+                    
+                    source.connect(analyser);
+                    resolve(true);
+                })
+                .catch(err => {
+                    console.error("Acceso denegado al hardware de audio:", err);
+                    reject(err);
+                });
+            });
+        }
+
+        // --- NAVEGACIÓN (TABS) ---
+        function switchTab(tabId, element) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.file-item').forEach(item => item.classList.remove('active'));
+            
+            document.getElementById(tabId).classList.add('active');
+            if(element) element.classList.add('active');
+            
+            let fileTitles = {
+                'network': 'src/network.js',
+                'livecoding': 'src/livecoding.js',
+                'silence': 'src/silence_sensor.sh',
+                'mangles': 'video/mangles.mp4',
+                'about': 'ABOUT.md',
+                'download': 'download.bin'
+            };
+            document.getElementById('current-file-title').innerText = fileTitles[tabId];
+        }
+
+        // --- LÓGICA DE LA TABLA 1: RED DESCENTRADA ---
+        const netCanvas = document.getElementById('network-canvas');
+        const netCtx = netCanvas.getContext('2d');
+        const outputTerminal = document.getElementById('poetic-terminal-output');
+
+        netCanvas.width = netCanvas.offsetWidth;
+        netCanvas.height = netCanvas.offsetHeight;
+
+        const nodes = [
+            { x: 120, y: 150, vx: 0.3, vy: 0.2, radius: 8, label: "Nodo_01_Rizoma", audio: "audio/audio_parte1.mp3", text: "MUNDO integra // red sin centro // todo nodo es input() & output()." },
+            { x: 280, y: 90,  vx: -0.2, vy: 0.4, radius: 8, label: "Nodo_02_Torre", audio: "audio/audio_parte2.mp3", text: "LA TORRE: software colapsa por tensión. Estructuras rígidas no absorben la variación." },
+            { x: 420, y: 240, vx: 0.4, vy: -0.2, radius: 8, label: "Nodo_03_Volátil", audio: "audio/audio_parte3.mp3", text: "Memoria volátil: la mutación no ocurre afuera, ocurre cuando el sistema supera sus límites." },
+            { x: 190, y: 310, vx: -0.3, vy: -0.3, radius: 8, label: "Nodo_04_Sujeto", audio: "audio/audio_parte4.mp3", text: "Sujeto des-subjetivado bajo frecuencias de interferencia. Pensar ya no cabe en la forma anterior." },
+            { x: 580, y: 130, vx: 0.2, vy: 0.3, radius: 8, label: "Nodo_05_Aislamiento", audio: "audio/audio_parte5.mp3", text: "Cámara de aislamiento // el lenguaje ya no explica, resuena. Afina preguntas." }
+        ];
+
+        let currentAudio = null;
+
+        function animateNetwork() {
+            netCtx.clearRect(0, 0, netCanvas.width, netCanvas.height);
+            
+            nodes.forEach(node => {
+                node.x += node.vx; node.y += node.vy;
+                if (node.x - node.radius < 0 || node.x + node.radius > netCanvas.width) node.vx *= -1;
+                if (node.y - node.radius < 0 || node.y + node.radius > netCanvas.height) node.vy *= -1;
+            });
+
+            netCtx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+            netCtx.lineWidth = 1.8;
+            netCtx.beginPath();
+            for(let i = 0; i < nodes.length; i++){
+                for(let j = i + 1; j < nodes.length; j++){
+                    netCtx.moveTo(nodes[i].x, nodes[i].y);
+                    netCtx.lineTo(nodes[j].x, nodes[j].y);
+                }
+            }
+            netCtx.stroke();
+
+            nodes.forEach(node => {
+                netCtx.fillStyle = '#6a9955';
+                netCtx.beginPath();
+                netCtx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+                netCtx.fill();
+                
+                netCtx.fillStyle = '#ffffff'; 
+                netCtx.font = 'bold 13px "Courier New"';
+                netCtx.fillText(node.label, node.x + 14, node.y + 5);
+            });
+
+            requestAnimationFrame(animateNetwork);
+        }
+
+        netCanvas.addEventListener('click', function(e) {
+            const rect = netCanvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            nodes.forEach(node => {
+                let dist = Math.hypot(mouseX - node.x, mouseY - node.y);
+                if(dist < node.radius + 12) {
+                    outputTerminal.innerHTML = `<span>> RUNNING: ${node.label} ...</span><br><span style="color: #fff;">${node.text}</span>`;
+                    if (currentAudio) currentAudio.pause();
+                    currentAudio = new Audio(node.audio);
+                    currentAudio.play().catch(err => {
+                        outputTerminal.innerHTML += `<br><span style="color: #ff5555;">[LOG_ERROR] Archivo '${node.audio}' ausente localmente.</span>`;
+                    });
+                }
+            });
+        });
+
+        animateNetwork();
+
+        // --- LÓGICA DE LA TABLA 2: LIVECODING ---
+        const lcCanvas = document.getElementById('livecoding-canvas');
+        const lcCtx = lcCanvas.getContext('2d');
+        let lcTime = 0;
+
+        const sliderMappings = [
+            { id: 'lc-lines', label: 'val-lines', postfix: '' },
+            { id: 'lc-thickness', label: 'val-thick', postfix: '' },
+            { id: 'lc-speed', label: 'val-speed', postfix: '' },
+            { id: 'lc-direction', label: 'val-dir', postfix: '°' },
+            { id: 'lc-noise', label: 'val-noise', postfix: '' },
+            { id: 'lc-separation', label: 'val-separation', postfix: '' },
+            { id: 'lc-mirror', label: 'val-mirror', postfix: '%' },
+            { id: 'lc-kscope', label: 'val-kscope', postfix: '' },
+            { id: 'lc-heartbeat', label: 'val-heartbeat', postfix: '%' }
+        ];
+
+        sliderMappings.forEach(mapping => {
+            let el = document.getElementById(mapping.id);
+            if(el) {
+                el.addEventListener('input', (e) => {
+                    document.getElementById(mapping.label).innerText = e.target.value + mapping.postfix;
+                });
+            }
+        });
+
+        function toggleLivecodingMic(checkbox) {
+            if (checkbox.checked) {
+                initSharedAudio().catch(() => { checkbox.checked = false; });
+            }
+        }
+
+        function animateLivecoding() {
+            lcCanvas.width = lcCanvas.offsetWidth;
+            lcCanvas.height = lcCanvas.offsetHeight;
+            lcCtx.clearRect(0, 0, lcCanvas.width, lcCanvas.height);
+            
+            let numLines = parseInt(document.getElementById('lc-lines').value);
+            let thickness = parseFloat(document.getElementById('lc-thickness').value);
+            let baseSpeed = parseFloat(document.getElementById('lc-speed').value);
+            let baseDirection = parseInt(document.getElementById('lc-direction').value) * Math.PI / 180;
+            let noiseVal = parseFloat(document.getElementById('lc-noise').value);
+            
+            let separation = parseFloat(document.getElementById('lc-separation').value);
+            let mirrorAlpha = parseFloat(document.getElementById('lc-mirror').value) / 100;
+            let kscopeSlices = parseInt(document.getElementById('lc-kscope').value);
+            let heartbeatIntensity = parseFloat(document.getElementById('lc-heartbeat').value) / 100;
+            
+            let volumeFactor = 0;
+            if (document.getElementById('lc-mic-enable').checked && analyser) {
+                analyser.getByteFrequencyData(dataArray);
+                let total = 0;
+                for (let i = 0; i < dataArray.length; i++) total += dataArray[i];
+                volumeFactor = total / dataArray.length;
+            }
+            
+            let currentSpeed = baseSpeed + (volumeFactor * 0.0015);
+            let currentDirection = baseDirection + (volumeFactor * 0.012);
+            lcTime += currentSpeed;
+            
+            let heartTime = (Date.now() / 1000) * Math.PI * 1.2;
+            let lub = Math.max(0, Math.sin(heartTime));
+            let dub = Math.max(0, Math.sin(heartTime * 2 + 0.6)) * 0.5;
+            let heartPulse = (lub + dub) * heartbeatIntensity;
+            
+            let heartScale = 1 + (heartPulse * 0.35);       
+            let heartThick = thickness * (1 + heartPulse * 0.8); 
+            
+            lcCtx.save();
+            lcCtx.translate(lcCanvas.width / 2, lcCanvas.height / 2);
+            lcCtx.rotate(currentDirection);
+            
+            for (let k = 0; k < kscopeSlices; k++) {
+                lcCtx.save();
+                lcCtx.rotate((Math.PI * 2 / kscopeSlices) * k);
+                lcCtx.lineWidth = heartThick;
+                
+                for (let i = -numLines / 2; i <= numLines / 2; i++) {
+                    let baseY = i * separation * heartScale;
+                    
+                    lcCtx.strokeStyle = 'rgba(212, 212, 212, 0.75)';
+                    lcCtx.beginPath();
+                    for (let x = -lcCanvas.width; x < lcCanvas.width; x += 12) {
+                        let wave = Math.sin(x * 0.005 + lcTime + i) * (35 + heartPulse * 25);
+                        let noiseJitter = (Math.random() - 0.5) * noiseVal;
+                        if (volumeFactor > 0) wave += Math.cos(x * 0.02 + lcTime * 2) * (volumeFactor * 0.4);
+                        
+                        let finalY = baseY + wave + noiseJitter;
+                        if (x === -lcCanvas.width) lcCtx.moveTo(x, finalY);
+                        else lcCtx.lineTo(x, finalY);
+                    }
+                    lcCtx.stroke();
+                    
+                    if (mirrorAlpha > 0) {
+                        lcCtx.save();
+                        lcCtx.strokeStyle = 'rgba(79, 193, 255, ' + (mirrorAlpha * 0.6) + ')'; 
+                        lcCtx.beginPath();
+                        for (let x = -lcCanvas.width; x < lcCanvas.width; x += 12) {
+                            let wave = Math.sin(x * 0.005 + lcTime + i) * (35 + heartPulse * 25);
+                            let noiseJitter = (Math.random() - 0.5) * noiseVal;
+                            if (volumeFactor > 0) wave += Math.cos(x * 0.02 + lcTime * 2) * (volumeFactor * 0.4);
+                            
+                            let finalY = -(baseY + wave + noiseJitter);
+                            if (x === -lcCanvas.width) lcCtx.moveTo(x, finalY);
+                            else lcCtx.lineTo(x, finalY);
+                        }
+                        lcCtx.stroke();
+                        lcCtx.restore();
+                    }
+                }
+                lcCtx.restore();
+            }
+            
+            lcCtx.restore();
+            requestAnimationFrame(animateLivecoding);
+        }
+
+        animateLivecoding();
+
+        // --- LÓGICA DE LA TABLA 3: SENSOR DE SILENCIO ---
+        const poeticsDatabase = [
+            "\"En el centro de la cámara anecoica, el silencio es un software que muerde. Si tú callas, el código se compila.\"",
+            "\"software colapsa por tensión / estructuras rígidas no absorben la variación / fragmentación súbita de la forma.\"",
+            "\"MUNDO integra / red sin centro en expansión / todo nodo es input() & output() / multiplicidad conectada.\"",
+            "\"el cerebro aprende a soportar la expansión / como si algo se abriera desde dentro / una sobrecarga ensanchándose.\"",
+            "\"burbuja amniótica / frecuencias hacen mundo sin abrir ojos / errores se propagan bajo la piel.\"",
+            "\"la ciencia ficción no ocurre afuera / ocurre cuando el sistema interno supera sus límites conocidos.\""
+        ];
+
+        let currentVerseIndex = 0;
+        let environmentIsSilent = false;
+        let silenceInterval = null;
+
+        function updateVerseDisplay() {
+            const textOutput = document.getElementById('silence-text-output');
+            textOutput.style.opacity = 0;
+            setTimeout(() => {
+                textOutput.innerText = poeticsDatabase[currentVerseIndex];
+                if (environmentIsSilent) textOutput.style.opacity = 1;
+            }, 400);
+        }
+
+        function triggerManualRescan() {
+            let nextIndex = currentVerseIndex;
+            while (nextIndex === currentVerseIndex) {
+                nextIndex = Math.floor(Math.random() * poeticsDatabase.length);
+            }
+            currentVerseIndex = nextIndex;
+            updateVerseDisplay();
+        }
+
+        function initSharedMic() {
+            const startBtn = document.getElementById('start-mic-btn');
+            startBtn.innerText = "[ ENTORNO ACCESADO: REGISTRANDO FRECUENCIAS ]";
+            startBtn.style.borderColor = "#6a9955";
+            startBtn.style.color = "#6a9955";
+
+            initSharedAudio().then(() => {
+                if(!silenceInterval) {
+                    silenceInterval = setInterval(() => {
+                        if (environmentIsSilent) {
+                            currentVerseIndex = (currentVerseIndex + 1) % poeticsDatabase.length;
+                            updateVerseDisplay();
+                        }
+                    }, 7000);
+                }
+                processSilenceLoop();
+            });
+        }
+
+        function processSilenceLoop() {
+            requestAnimationFrame(processSilenceLoop);
+            if(!analyser) return;
+
+            analyser.getByteFrequencyData(dataArray);
+            let total = 0;
+            for (let i = 0; i < dataArray.length; i++) total += dataArray[i];
+            let volume = total / dataArray.length;
+
+            let volPercent = Math.min(volume * 2.5, 100); 
+            document.getElementById('vol-bar').style.width = volPercent + '%';
+
+            const textOutput = document.getElementById('silence-text-output');
+            if (volume < 7) {
+                environmentIsSilent = true;
+                textOutput.style.opacity = 1;
+            } else {
+                environmentIsSilent = false;
+                textOutput.style.opacity = 0;
+            }
+        }
+    </script>
+</body>
+</html>
